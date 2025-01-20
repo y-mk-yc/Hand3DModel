@@ -33,13 +33,26 @@ export default {
       mode: 'hand', // hand, finger, joint
       jointExerciseState: JOINTEXERCISESTATE,
       userState: USERSTATE,
-      side: ['right'], // right, left
-      compareWith: NOCONTENT,
+      side: ['Right'], // Right, Left
       newRotateFinger: '',
       currentRotateFinger: '',
       rotation: 0, // To reord how much does the current finger rotate, so that it can back to original position
+      rotationDirection: 'FE', // FE || DB
+      animationFrameId: null,
 
-      animationFrameId: null
+      contrast: NOCONTENT,
+      // Contrast model: unaffect
+      modelUnaffect: null,
+
+      // Contrast model: milestone
+      modelMile: null,
+
+
+      animationFrameIds: {},
+      currentRotateFingers: {
+        Right: null,
+        Left: null,
+      },
     }
   },
   mounted()
@@ -48,11 +61,15 @@ export default {
 
     window.receiveMessageFromFlutter = this.receiveMessageFromFlutter;
     window.receiveJointInforFromFlutter = this.receiveJointInforFromFlutter;
+    window.addEventListener('load', () =>
+    {
+      // Notify the parent window (React app) that the Vue app is ready
+      window.parent.postMessage({ type: 'vue-ready' }, '*');
+    });
     window.addEventListener('message', (event) =>
     {
-      // if (event.origin === 'http://localhost:3000') {
-      console.log(event)
-      // }
+      if (event.origin === 'http://localhost:5173')
+        this.receiveMessageFromTherapist(event.data)
     });
     this.initScene();
   },
@@ -63,31 +80,62 @@ export default {
     {
       window.removeEventListener('dataFromFlutter', this.handleDataFromFlutter);
     }
-  },
-  methods: {
-    receiveMessageFromTherapist()
+  }, methods: {
+    receiveMessageFromTherapist(message)
     {
+      console.log("Received message from website:", message.type)
+      if (message.type === 'initial')
+      {
+        const { jointExerciseState, userState } = message.data
+        console.log({ jointExerciseState, userState })
+        this.jointExerciseState = jointExerciseState
+        this.userState = userState
+        this.initColor();
+      } else if (message.type === 'rotationDirection')
+      {
+        this.rotationDirection = message.data
+        console.log('Rotation direction is:', this.rotationDirection)
+        if (this.currentRotateFingers[this.affectedSide])
+        {
+          this.rotateFinger(this.currentRotateFingers[this.affectedSide], this.affectedSide);
 
-    },
-    receiveMessageFromFlutter(message)
-    {
-      console.log('Processing message from Flutter:', message);
+        }
+        if (this.currentRotateFingers[this.unaffectedSide])
+        {
+
+          this.rotateFinger(this.currentRotateFingers[this.unaffectedSide], this.uaffectedSide);
+        }
+      } else if (message.type === 'contrast')
+      {
+        console.log('Vue: receive new contrast:', message.data)
+        if (message.data === UNAFFECTED || message.data === BOTH)
+          this.setMaterialVisible(this.model.children[1], 0.2, true)
+        else if (message.data === MILESTONE || message.data === BOTH)
+          this.setMaterialVisible(this.model.children[2], 0.2, true)
+        else if (message.data === NOCONTENT)
+        {
+          this.setMaterialVisible(this.model.children[1], 0, false)
+          this.setMaterialVisible(this.model.children[2], 0, false)
+        }
+      }
+
     },
     receiveCompareFromFlutter(message)
     {
       // TODO need to think about change use 3 models, or like dashboard, only put some colorful fog around it
-
     },
     receiveJointInforFromFlutter(jointExerciseState, userState)
     {
       const jointExerciseStateObj = JSON.parse(jointExerciseState);
-
       const userStateObj = JSON.parse(userState);
       this.side = this.userState['AffectedHand'];
-
       this.jointExerciseState = jointExerciseStateObj;
       this.userState = userStateObj
       this.initColor();
+    },
+    receiveRotateDirection(rotateDirection)
+    {
+      this.rotationDirection = rotateDirection
     },
     sendMessageToFlutter(data)
     {
@@ -99,6 +147,25 @@ export default {
       } else
       {
         console.error('JavaScript channel hand_data is not available.');
+      }
+    },
+    sendMessageToTherapist(data)
+    {
+      window.parent.postMessage({ type: 'joint', data: data }, "*");
+    },
+    setMaterialVisible(model, opacity, visible)
+    {
+      model.visible = visible
+      if (model.visible)
+      {
+        model.children.map((child) =>
+        {
+          if (child.isMesh)
+          {
+            child.material.transparent = visible; // Enable transparency
+            child.material.opacity = opacity; // Set opacity
+          }
+        })
       }
     },
     //初始场景
@@ -128,14 +195,14 @@ export default {
         if (!this.userState)
           this.userState = USERSTATE
         if (!this.jointExerciseState) this.jointExerciseState = JOINTEXERCISESTATE
-        if (this.userState['AffectedHand'].includes('right'))
+        if (this.userState['AffectedHand'].includes('Right'))
         {
-          rom = this.jointExerciseState['right'][`Right${name}`]['ROM'];
+          rom = this.jointExerciseState['Right'][`Right${name}`]['ROM'];
           return this._getSeverity(rom)
         }
-        if (this.userState['AffectedHand'].includes('left'))
+        if (this.userState['AffectedHand'].includes('Left'))
         {
-          rom = this.jointExerciseState['left'][`Left${name}`]['ROM'];
+          rom = this.jointExerciseState['Left'][`Left${name}`]['ROM'];
           return this._getSeverity(rom)
         } else
         {
@@ -145,20 +212,11 @@ export default {
     },
     _getSeverity(rom)
     {
-      const yRom = rom['Yrotation']['max'] - rom['Yrotation']['min'];
-      const xRom = rom['Xrotation']['max'] - rom['Xrotation']['min'];
-      const zRom = rom['Zrotation']['max'] - rom['Zrotation']['min'];
-      if (yRom < MAX_RANGE * 0.25
-        // || xRom < MAX_RANGE * 0.25  // because it's all navigate
-        //  || zRom < MAX_RANGE * 0.25   //because it's all 0
-
-      )
+      const yRom = rom['Yrotation']['Max'] - rom['Yrotation']['Min'];
+      if (yRom < MAX_RANGE * 0.25)
       {
         return 's'
-      } else if (yRom > MAX_RANGE * 0.75
-        // || xRom > MAX_RANGE * 0.75 
-        // || zRom > MAX_RANGE * 0.75
-      )
+      } else if (yRom > MAX_RANGE * 0.75)
       {
         return 'l'
       } else
@@ -175,17 +233,17 @@ export default {
         {
           const name = child.name;
           const severity = this.getSeverity(name)
-          if (severity == 's')
+          if (severity === 's')
           {
             child.material = new THREE.MeshStandardMaterial({
               color: '#fa0202' // serious
             });
-          } else if (severity == 'l')
+          } else if (severity === 'l')
           {
             child.material = new THREE.MeshStandardMaterial({
               color: '#79f306'  // light
             });
-          } else if (severity == 'm')
+          } else if (severity === 'm')
           {
             child.material = new THREE.MeshStandardMaterial({
               color: '#fac849' // medium
@@ -202,7 +260,6 @@ export default {
       this.camera.position.x = 90;
       this.camera.position.y = 0;
       this.camera.position.z = 0;
-
       this.camera.lookAt(0, 0, 0);
     },
     //初始化渲染器模型
@@ -224,16 +281,36 @@ export default {
       this.loader = new GLTFLoader(this.loadingManager);
       this.loading = true;
       // 创建GLTF加载器，并设置加载管理器
-      this.loader.load('models/hand5.glb', (gltf) =>
+      this.loader.load('models/hand_3.glb', (gltf) =>
       {
         // 打印模型结构
         gltf.scene.scale.set(10, 10, 10);
         this.model = gltf.scene;
+
+        // transparent unaffected hand
+        // this.setMaterialVisible(this.model.children[1], 0, false)
+        this.setMaterialVisible(this.model.children[1], 0.5, true)
+
+        // transparent milestone hand
+        this.setMaterialVisible(this.model.children[2], 0, false)
+
         this.fingers = this.model.children[0].children
-        this.bones = this.fingers[15].children[0] //.children
-        // this.initColor();
+        this.unaffectedFingers = this.model.children[0].children
+        this.unaffectedFingers = this.model.children[1].children
+        this.milestoneFingers = this.model.children[2].children
+
+        this.bones = this.fingers[15].children[0]
+        this.unaffectedBones = this.unaffectedFingers[15].children[0]
+        this.milestoneBones = this.milestoneFingers[15].children[0]
+
+
+        this.affectedSide = this.side[0] === 'Left' ? 'Left' : 'Right';
+        this.unaffectedSide = this.side[0] === 'Right' ? 'Left' : 'Right';
+
+
         this.scene.add(gltf.scene);
-        this.initColor();
+
+        // this.initColor();
       }, undefined);
     },
     //点击模型
@@ -250,7 +327,7 @@ export default {
 
         // Check the clicked object
         raycaster.setFromCamera(mouse, this.camera);
-        const intersects = raycaster.intersectObjects(this.scene.children);
+        const intersects = raycaster.intersectObjects([this.scene.children[3].children[0], this.scene.children[0], this.scene.children[1], this.scene.children[2]]);
 
         if (intersects.length > 0
           && intersects[0].object.name != 'Metacarpal'
@@ -260,42 +337,33 @@ export default {
           const number = this.newRotateFinger.match(/\d+/)[0];
 
           this.sendMessageToFlutter({ mode: this.mode, clicked: this.newRotateFinger });
-          // this.changeGesture(this.newRotateFinger);
           // If it's in hand mode, change to finger mode
           if (this.mode == 'hand')
           {
             this.mode = 'finger';
-            // this.currentRotateFinger = this.newRotateFinger
-            // const number = position.match(/\d+/);
-            // const clicked = String(number);
             this.changeGesture(this.newRotateFinger);
-            this.sendMessageToFlutter({ mode: this.mode, clicked: this.newRotateFinger });
           }
 
-          else if (this.currentRotateFinger.name.match(/\d+/)[0] != this.newRotateFinger.match(/\d+/)[0])
+          else if (this.currentRotateFingers[this.affectedSide].name.match(/\d+/)[0] != this.newRotateFinger.match(/\d+/)[0])
           {
             //If it's in finger mode, click another finger, change to correpsonding finger
             //If clicked different finger, change to that finger
-
-            // this.currentRotateFinger = this.newRotateFinger
             this.mode = 'finger';
             this.changeGesture(this.newRotateFinger);
-            this.sendMessageToFlutter({ mode: this.mode, clicked: this.newRotateFinger });
           }
-          else if (this.currentRotateFinger.name.match(/\d+/)[0] == this.newRotateFinger.match(/\d+/)[0])
+          else if (this.currentRotateFingers[this.affectedSide].name.match(/\d+/)[0] == this.newRotateFinger.match(/\d+/)[0])
           {
             // If It's  in finger mode, click a specific joint change to joint
-
-            // this.currentRotateFinger = this.newRotateFinger
             this.mode = 'joint';
             this.newRotateFinger.split(number)[1];
+            if (!this.newRotateFinger.includes('Proximal')) this.rotation = 'FE'
             this.changeGesture(this.newRotateFinger)
-            this.sendMessageToFlutter({ mode: this.mode, clicked: this.newRotateFinger });
           }
+          this.sendMessageToFlutter({ mode: this.mode, clicked: this.newRotateFinger });
+          this.sendMessageToTherapist({ mode: this.mode, clicked: this.newRotateFinger });
         }
       }
       window.addEventListener('click', onMouseClick, false);
-
     },
 
     //添加光源
@@ -313,6 +381,7 @@ export default {
       directionalLight6.position.set(-500, 500, 500).normalize();
       this.scene.add(directionalLight6);
     },
+
     //渲染场景
     renderScene()
     {
@@ -323,10 +392,11 @@ export default {
       };
       animate();
     },
-    findBone(name)
+
+    findBone(name, bones)
     {
       let foundBone = null;
-      this.bones.traverse((bone) =>
+      bones.traverse((bone) =>
       {
         if (name.substring(0, 11) == bone.name.substring(0, 11)) //Because some of the names become name_1, so use substringto check part of them
         {
@@ -335,10 +405,11 @@ export default {
       })
       return foundBone;
     },
-    findFinger(name)
+
+    findFinger(name, bones)
     {
       let foundBone = null;
-      this.bones.traverse((bone) =>
+      bones.traverse((bone) =>
       {
         if (bone.name.substring(0, 7) == name.substring(0, 7) && bone.name.includes('Proximal'))
         {
@@ -347,54 +418,73 @@ export default {
       })
       return foundBone;
     },
-    rotateFinger(bone)
+    rotateFinger(bone, side)
     {
-      const side = this.side[0] === 'left' ? 'Left' : 'Right'; // Adjust side dynamically
+      const name = bone.name.split('_')[0];
+      const rotationSpeed = 0.01;
 
-      const rotationSpeed = 0.02; // Controls the speed of rotation
-
-      // Get the minimum and maximum rotation range for the bone
-      let minRotation = THREE.MathUtils.degToRad(
-        this.jointExerciseState[this.side[0]][`${side}${bone.name}`]['ROM']['Yrotation']['min']
-      );
-      let maxRotation = THREE.MathUtils.degToRad(
-        this.jointExerciseState[this.side[0]][`${side}${bone.name}`]['ROM']['Yrotation']['max']
-      );
-      console.log({ minRotation, maxRotation })
-      let currentRotation = minRotation; // Start from minimum rotation
-      let direction = 1; // 1 for forward rotation, -1 for backward
-
-      // Stop any ongoing animation and reset the previous finger
-      if (this.currentRotateFinger)
+      // Cancel and reset previous animation
+      if (this.currentRotateFingers[side])
       {
-        cancelAnimationFrame(this.animationFrameId); // Cancel the old animation loop
-        this.currentRotateFinger.rotation.z = 0; // Reset the rotation of the previous finger
+        cancelAnimationFrame(this.animationFrameIds[side]);
+        this.currentRotateFingers[side].rotation.set(0, 0, 0);
       }
 
-      this.currentRotateFinger = bone//.name; // Set the new finger to rotate
+      let minRotation, maxRotation, axis;
+      const updateRangesAndAxis = () =>
+      {
+        // Determine the rotation axis and range based on direction
+        if (this.rotationDirection === 'FE')
+        {
+          minRotation = THREE.MathUtils.degToRad(
+            this.jointExerciseState[side][`${side}${name}`]['ROM']['Xrotation']['Min']
+          );
+          maxRotation = THREE.MathUtils.degToRad(
+            this.jointExerciseState[side][`${side}${name}`]['ROM']['Xrotation']['Max']
+          );
+          axis = 'z'; // Adjust axis if necessary
+        } else
+        {
+          minRotation = THREE.MathUtils.degToRad(
+            this.jointExerciseState[side][`${side}${name}`]['ROM']['Yrotation']['Min']
+          );
+          maxRotation = THREE.MathUtils.degToRad(
+            this.jointExerciseState[side][`${side}${name}`]['ROM']['Yrotation']['Max']
+          );
+          axis = 'x'; // Adjust axis if necessary
+        }
+      };
 
+      updateRangesAndAxis(); // Initialize ranges and axis
+
+      let currentRotation = minRotation;
+      let direction = 1;
+
+      this.currentRotateFingers[side] = bone;
+
+      // Animation loop
       const update = () =>
       {
-        // Check if the current finger is still the one being rotated
-        if (this.currentRotateFinger !== bone)
-        {
-          return; // Stop the animation loop if a new finger starts rotating
-        }
+        // if (this.currentRotateFingers[side] !== bone) return;
 
-        // Change direction if it reaches the limits
+        // Recalculate ranges if the direction has changed
+
+        updateRangesAndAxis();
+
+        // Reverse direction if limits are reached
         if (currentRotation > maxRotation || currentRotation < minRotation)
         {
-          direction *= -1; // Reverse the direction
+          direction *= -1;
         }
 
         currentRotation += rotationSpeed * direction;
-        // Apply the calculated rotation to the bone
-        bone.rotation.z = currentRotation;
-        // Request the next frame for animation
+        bone.rotation[axis] = -currentRotation;
+
         this.animationFrameId = requestAnimationFrame(update);
+        this.animationFrameIds[side] = this.animationFrameId
       };
 
-      // Start the rotation loop
+      // Start the animation loop
       this.animationFrameId = requestAnimationFrame(update);
     },
 
@@ -403,26 +493,40 @@ export default {
       switch (this.mode)
       {
         case 'hand':
-          this.camera.position.x = 0;
-          this.camera.position.y = 100;
-          this.camera.position.z = -50; // Move to the front along the negative z-axis
+          this.camera.position.x = 90;
+          this.camera.position.y = 0;
+          this.camera.position.z = 0;
           this.camera.lookAt(0, 0, 0);
-          // this.camera.updateProjectionMatrix();
           break;
         case 'finger':
-          const finger = this.findFinger(clicked)
+          const finger = this.findFinger(clicked, this.bones)
+          const unaffectedFinger = this.findFinger(clicked, this.unaffectedBones)
+
           this.newRotateFinger = finger.name
-          // this.currentRotateFinger = finger.name
-          this.rotateFinger(finger)
-          this.camera.position.x = 0;
-          this.camera.position.y = 0;
-          this.camera.position.z = -150;
-          this.camera.lookAt(0, 0, 0);
+          this.rotateFinger(finger, this.affectedSide)
+          this.rotateFinger(unaffectedFinger, this.unaffectedSide)
+          if (this.rotationDirection === 'FE')
+          {
+            this.camera.position.x = 0;
+            this.camera.position.y = 0;
+            this.camera.position.z = -100;
+            this.camera.lookAt(0, 0, 0);
+          } else
+          {
+            this.camera.position.x = 90;
+            this.camera.position.y = 0;
+            this.camera.position.z = 0;
+            this.camera.lookAt(0, 0, 0);
+          }
           break
         case 'joint':
-          const joint = this.findBone(clicked)
-          this.newRotateFinger = joint
-          this.rotateFinger(joint)
+          const joint = this.findBone(clicked, this.bones)
+          const unaffectedJoint = this.findBone(clicked, this.unaffectedBones)
+          this.rotationDirection = 'FE'
+          this.newRotateFinger = joint.name
+          this.rotateFinger(joint, this.affectedSide)
+
+          this.rotateFinger(unaffectedJoint, this.unaffectedSide)
           break
         default:
           break;
