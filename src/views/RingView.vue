@@ -10,9 +10,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { NOCONTENT, UNAFFECTED, MILESTONE, BOTH } from '../config/global.js';
-
 import { USERSTATE, JOINTEXERCISESTATE } from '../config/test.js';
-const MAX_RANGE = 500; //TODO serch the specific number
+const MAX_RANGE = 80 //500; //TODO serch the specific number
 export default {
   name: 'HomeView',
   data()
@@ -33,20 +32,25 @@ export default {
       mode: 'hand', // hand, finger, joint
       jointExerciseState: JOINTEXERCISESTATE,
       userState: USERSTATE,
-      side: ['Right'], // Right, Left
+      side: USERSTATE['AffectedHand'], // Right, Left
       newRotateFinger: '',
       currentRotateFinger: '',
       rotation: 0, // To reord how much does the current finger rotate, so that it can back to original position
       rotationDirection: 'FE', // FE || DB
       animationFrameId: null,
 
-      contrast: NOCONTENT,
+      channel: 'T', //T-therapist, P-patient
+      contrast: UNAFFECTED,//NOCONTENT,
       // Contrast model: unaffect
       modelUnaffect: null,
-
+      isInitialized: false,
       // Contrast model: milestone
       modelMile: null,
 
+      minMaxOfJoints: {},
+      sharedRotationState: null,
+
+      initialPosition: {},
 
       animationFrameIds: {},
       currentRotateFingers: {
@@ -57,10 +61,9 @@ export default {
   },
   mounted()
   {
-    // window.addEventListener('dataFromFlutter', this.handleDataFromFlutter);
-
-    window.receiveMessageFromFlutter = this.receiveMessageFromFlutter;
     window.receiveJointInforFromFlutter = this.receiveJointInforFromFlutter;
+    window.receiveContrastFromFlutter = this.receiveContrastFromFlutter;
+    window.receiveSynchronizeFromFlutter = this.receiveSynchronizeFromFlutter;
     window.addEventListener('load', () =>
     {
       // Notify the parent window (React app) that the Vue app is ready
@@ -69,7 +72,8 @@ export default {
     window.addEventListener('message', (event) =>
     {
       if (event.origin === 'http://localhost:5173')
-        this.receiveMessageFromTherapist(event.data)
+        this.channel = 'T'
+      this.receiveMessageFromTherapist(event.data)
     });
     this.initScene();
   },
@@ -83,70 +87,100 @@ export default {
   }, methods: {
     receiveMessageFromTherapist(message)
     {
-      console.log("Received message from website:", message.type)
       if (message.type === 'initial')
       {
         const { jointExerciseState, userState } = message.data
-        console.log({ jointExerciseState, userState })
         this.jointExerciseState = jointExerciseState
         this.userState = userState
+        this.isInitialized = true
+        this.channel = 'T'
         this.initColor();
       } else if (message.type === 'rotationDirection')
       {
         this.rotationDirection = message.data
-        console.log('Rotation direction is:', this.rotationDirection)
+        // console.log('Rotation direction is:', this.rotationDirection)
+
+        this.resetNatureGesture(this.affectedSide, this.bones)
+
+        this.resetNatureGesture(this.unaffectedSide, this.unaffectedBones)
         if (this.currentRotateFingers[this.affectedSide])
         {
           this.rotateFinger(this.currentRotateFingers[this.affectedSide], this.affectedSide);
-
         }
         if (this.currentRotateFingers[this.unaffectedSide])
         {
-
-          this.rotateFinger(this.currentRotateFingers[this.unaffectedSide], this.uaffectedSide);
+          this.rotateFinger(this.currentRotateFingers[this.unaffectedSide], this.unaffectedSide);
         }
       } else if (message.type === 'contrast')
       {
-        console.log('Vue: receive new contrast:', message.data)
-        if (message.data === UNAFFECTED || message.data === BOTH)
-          this.setMaterialVisible(this.model.children[1], 0.2, true)
-        else if (message.data === MILESTONE || message.data === BOTH)
-          this.setMaterialVisible(this.model.children[2], 0.2, true)
-        else if (message.data === NOCONTENT)
-        {
-          this.setMaterialVisible(this.model.children[1], 0, false)
-          this.setMaterialVisible(this.model.children[2], 0, false)
-        }
+        const data = message.data
+        console.log('Vue: receive new contrast:', data)
+        this.setContrastModels(data)
+      } else if (message.type === 'nature')
+      {
+        this.resetNatureGesture(this.affectedSide, this.bones)
+
+        this.resetNatureGesture(this.unaffectedSide, this.unaffectedBones)
       }
+    },
+    receiveSynchronizeFromFlutter()
+    {
 
     },
-    receiveCompareFromFlutter(message)
+    receiveContrastFromFlutter(message)
     {
-      // TODO need to think about change use 3 models, or like dashboard, only put some colorful fog around it
+      const data = message
+      console.log('Vue: receive new contrast from flutter:', data)
+      this.setContrastModels(data)
     },
-    receiveJointInforFromFlutter(jointExerciseState, userState)
+    setContrastModels(data)
     {
+      if (data === UNAFFECTED || data === BOTH)
+        this.setMaterialVisible(this.model.children[1], 0.2, true)
+      else if (data === MILESTONE || data === BOTH)
+        this.setMaterialVisible(this.model.children[2], 0.2, true)
+      else if (data === NOCONTENT)
+      {
+        this.setMaterialVisible(this.model.children[1], 0, false)
+        this.setMaterialVisible(this.model.children[2], 0, false)
+      }
+    },
+    receiveJointInforFromFlutter(jointExerciseState, userState, contrast)
+    {
+      this.channel = 'P'
+      this.setMaterialVisible(this.model.children[1], 0.2, true)
+
+      this.isInitialized = true
       const jointExerciseStateObj = JSON.parse(jointExerciseState);
       const userStateObj = JSON.parse(userState);
-      this.side = this.userState['AffectedHand'];
+      this.side = this.userState.AffectedHand;
       this.jointExerciseState = jointExerciseStateObj;
-      this.userState = userStateObj
+      this.userState = userStateObj;
+      this.contrast = contrast;
       this.initColor();
+      this.setContrastModels(contrast);
+      this.autoRotate()
     },
     receiveRotateDirection(rotateDirection)
     {
       this.rotationDirection = rotateDirection
     },
+
+
     sendMessageToFlutter(data)
     {
-      console.log("send message to flutter: ", JSON.stringify(data))
+      const jsonData = JSON.stringify(data)
+      console.log("send message to flutter: ", jsonData)
       if (window.hand_data)
       {
         console.log("send")
-        window.hand_data.postMessage(data);
+        window.hand_data.postMessage(
+          jsonData
+          // 'Your message here'
+        );
       } else
       {
-        console.error('JavaScript channel hand_data is not available.');
+        // console.error('JavaScript channel hand_data is not available.');
       }
     },
     sendMessageToTherapist(data)
@@ -184,7 +218,7 @@ export default {
       this.addLight();
       this.renderScene();
       this.createGlb();
-      this.addClickEvent()
+      this.addClickEvent();
     },
     getSeverity(name)
     {
@@ -212,7 +246,9 @@ export default {
     },
     _getSeverity(rom)
     {
-      const yRom = rom['Yrotation']['Max'] - rom['Yrotation']['Min'];
+      // const yRom = Number(rom['Yrotation']['Max']) - Number(rom['Yrotation']['Min']);
+
+      const yRom = Number(rom['Xrotation']['Max']) - Number(rom['Xrotation']['Min']);
       if (yRom < MAX_RANGE * 0.25)
       {
         return 's'
@@ -253,7 +289,7 @@ export default {
 
       });
     },
-    //初始化相机
+
     initCamera()
     {
       this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -262,7 +298,7 @@ export default {
       this.camera.position.z = 0;
       this.camera.lookAt(0, 0, 0);
     },
-    //初始化渲染器模型
+
     initRender()
     {
       this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -270,12 +306,12 @@ export default {
       this.renderer.shadowMap.enabled = true;
       this.$refs.home.appendChild(this.renderer.domElement);
     },
-    //初始化控制器
+
     initControls()
     {
       this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     },
-    //加载glb模型
+
     createGlb()
     {
       this.loader = new GLTFLoader(this.loadingManager);
@@ -283,13 +319,13 @@ export default {
       // 创建GLTF加载器，并设置加载管理器
       this.loader.load('models/hand_3.glb', (gltf) =>
       {
-        // 打印模型结构
+        // Print model structure
         gltf.scene.scale.set(10, 10, 10);
         this.model = gltf.scene;
 
         // transparent unaffected hand
         // this.setMaterialVisible(this.model.children[1], 0, false)
-        this.setMaterialVisible(this.model.children[1], 0.5, true)
+        this.setMaterialVisible(this.model.children[1], 0, true)
 
         // transparent milestone hand
         this.setMaterialVisible(this.model.children[2], 0, false)
@@ -308,23 +344,39 @@ export default {
         this.unaffectedSide = this.side[0] === 'Right' ? 'Left' : 'Right';
 
 
-        this.scene.add(gltf.scene);
+        this.loadInitialPosition(this.affectedSide, this.bones);
 
-        // this.initColor();
+        this.loadInitialPosition(this.unaffectedSide, this.unaffectedBones);
+
+        this.scene.add(gltf.scene);
+        // Only for Deubug - rememeber to comment it when in development
+        this.initColor();
+
+        this.setMaterialVisible(this.model.children[1], 0.2, true)
+
+        // this.autoRotate()
       }, undefined);
     },
-    //点击模型
+
     addClickEvent()
     {
-      // 添加点击事件监听
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
       let onMouseClick = (event) =>
       {
+        console.log(this.channel)
+        if (this.channel === 'P') // Only in T(therapist dashboard), can we have the function
+          return
+        if (!this.isInitialized)
+        {
+          console.log('The user doesn\'t have any data')
+          return
+        }
+
+
         // calculate the clicked position
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
         // Check the clicked object
         raycaster.setFromCamera(mouse, this.camera);
         const intersects = raycaster.intersectObjects([this.scene.children[3].children[0], this.scene.children[0], this.scene.children[1], this.scene.children[2]]);
@@ -336,7 +388,9 @@ export default {
           this.newRotateFinger = intersects[0].object.name;
           const number = this.newRotateFinger.match(/\d+/)[0];
 
-          this.sendMessageToFlutter({ mode: this.mode, clicked: this.newRotateFinger });
+          this.resetNatureGesture(this.affectedSide, this.bones)
+
+          this.resetNatureGesture(this.unaffectedSide, this.unaffectedBones)
           // If it's in hand mode, change to finger mode
           if (this.mode == 'hand')
           {
@@ -359,14 +413,13 @@ export default {
             if (!this.newRotateFinger.includes('Proximal')) this.rotation = 'FE'
             this.changeGesture(this.newRotateFinger)
           }
-          this.sendMessageToFlutter({ mode: this.mode, clicked: this.newRotateFinger });
+          if (this.channel === 'P') this.sendMessageToFlutter({ mode: this.mode, clicked: this.newRotateFinger });
           this.sendMessageToTherapist({ mode: this.mode, clicked: this.newRotateFinger });
         }
       }
       window.addEventListener('click', onMouseClick, false);
     },
 
-    //添加光源
     addLight()
     {
       const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444);
@@ -382,7 +435,6 @@ export default {
       this.scene.add(directionalLight6);
     },
 
-    //渲染场景
     renderScene()
     {
       const animate = () =>
@@ -398,7 +450,9 @@ export default {
       let foundBone = null;
       bones.traverse((bone) =>
       {
-        if (name.substring(0, 11) == bone.name.substring(0, 11)) //Because some of the names become name_1, so use substringto check part of them
+        console.log({ name, })
+        console.log(bone.name)
+        if (bone.name !== undefined && name.substring(0, 11) == bone.name.substring(0, 11)) //Because some of the names become name_1, so use substringto check part of them
         {
           foundBone = bone;
         }
@@ -418,16 +472,63 @@ export default {
       })
       return foundBone;
     },
+
+    loadInitialPosition(sideName, bones)
+    {
+      //Record the nature position and post the nature gesture
+      const side = this.jointExerciseState[sideName]
+      for (const joint in side)
+      {
+        const name = joint.split(sideName)[1];
+        const bone = this.findBone(name, bones);
+        if (!bone) continue;
+
+        const xrotation = THREE.MathUtils.degToRad(side[joint]['Yrotation'])
+        const yrotation = THREE.MathUtils.degToRad(side[joint]['Zrotation'])
+        const zrotation = THREE.MathUtils.degToRad(side[joint]['Xrotation'])
+
+        bone.rotation['z'] = -zrotation
+
+        bone.rotation['x'] = -xrotation
+
+        const originalPosition = bone.position.clone();
+        const originalRotation = bone.quaternion.clone();  // Use quaternion to avoid gimbal lock
+        this.initialPosition[joint] = { 'originalPosition': originalPosition, 'originalRotation': originalRotation }
+      }
+    },
+    resetNatureGesture(sideName, bones)
+    {
+
+      const side = this.jointExerciseState[sideName]
+      for (const joint in side)
+      {
+        const name = joint.split(sideName)[1];
+        const bone = this.findBone(name, bones);
+        if (!bone) continue;
+
+        if (this.currentRotateFingers[this.affectedSide])
+        {
+          cancelAnimationFrame(this.animationFrameIds[this.affectedSide]);
+          cancelAnimationFrame(this.animationFrameIds[this.unaffectedSide]);
+        }
+        bone.position.copy(this.initialPosition[joint]['originalPosition']);
+        bone.quaternion.copy(this.initialPosition[joint]['originalRotation']);
+      }
+    }
+    ,
+
+    //For therapist dashboard
     rotateFinger(bone, side)
     {
       const name = bone.name.split('_')[0];
       const rotationSpeed = 0.01;
-
+      const joint = `${side}${name}`
+      this.minMaxOfJoints[joint] = { stop: false };
       // Cancel and reset previous animation
       if (this.currentRotateFingers[side])
       {
         cancelAnimationFrame(this.animationFrameIds[side]);
-        this.currentRotateFingers[side].rotation.set(0, 0, 0);
+        // this.currentRotateFingers[side].rotation.set(0, 0, 0);
       }
 
       let minRotation, maxRotation, axis;
@@ -436,49 +537,81 @@ export default {
         // Determine the rotation axis and range based on direction
         if (this.rotationDirection === 'FE')
         {
+
+          // minRotation = THREE.MathUtils.degToRad(
+          //   this.jointExerciseState[side][joint]['ROM']['Xrotation']['Min']
+          // );
+          // maxRotation = THREE.MathUtils.degToRad(
+          //   this.jointExerciseState[side][joint]['ROM']['Xrotation']['Max']
+          // );
+
           minRotation = THREE.MathUtils.degToRad(
-            this.jointExerciseState[side][`${side}${name}`]['ROM']['Xrotation']['Min']
+            this.jointExerciseState[side][joint]['ROM']['Yrotation']['Min']
           );
           maxRotation = THREE.MathUtils.degToRad(
-            this.jointExerciseState[side][`${side}${name}`]['ROM']['Xrotation']['Max']
+            this.jointExerciseState[side][joint]['ROM']['Yrotation']['Max']
           );
           axis = 'z'; // Adjust axis if necessary
         } else
         {
+
+          // minRotation = THREE.MathUtils.degToRad(
+          //   this.jointExerciseState[side][joint]['ROM']['Yrotation']['Min']
+          // );
+          // maxRotation = THREE.MathUtils.degToRad(
+          //   this.jointExerciseState[side][joint]['ROM']['Yrotation']['Max']
+          // );
           minRotation = THREE.MathUtils.degToRad(
-            this.jointExerciseState[side][`${side}${name}`]['ROM']['Yrotation']['Min']
+            this.jointExerciseState[side][joint]['ROM']['Xrotation']['Min']
           );
           maxRotation = THREE.MathUtils.degToRad(
-            this.jointExerciseState[side][`${side}${name}`]['ROM']['Yrotation']['Max']
+            this.jointExerciseState[side][joint]['ROM']['Xrotation']['Max']
           );
           axis = 'x'; // Adjust axis if necessary
         }
+
+        this.minMaxOfJoints[joint]['Min'] = minRotation;
+        this.minMaxOfJoints[joint]['Max'] = maxRotation;
       };
 
       updateRangesAndAxis(); // Initialize ranges and axis
 
-      let currentRotation = minRotation;
-      let direction = 1;
+      // let currentRotation = minRotation;
+      // let direction = 1;
 
       this.currentRotateFingers[side] = bone;
 
+      this.minMaxOfJoints[joint]['currentRotation'] = minRotation;
       // Animation loop
       const update = () =>
       {
-        // if (this.currentRotateFingers[side] !== bone) return;
-
-        // Recalculate ranges if the direction has changed
-
         updateRangesAndAxis();
-
-        // Reverse direction if limits are reached
-        if (currentRotation > maxRotation || currentRotation < minRotation)
+        if (!this.minMaxOfJoints[joint]['stop'])
         {
-          direction *= -1;
+          this.minMaxOfJoints[joint]['currentRotation'] += rotationSpeed * this.sharedRotationState.direction;
+
+          if (this.minMaxOfJoints[joint]['currentRotation'] >= maxRotation || this.minMaxOfJoints[joint]['currentRotation'] <= minRotation)
+          {
+            this.minMaxOfJoints[joint]['currentRotation'] = Math.min(maxRotation, Math.max(minRotation, this.minMaxOfJoints[joint]['currentRotation']));
+            this.minMaxOfJoints[joint]['stop'] = true;
+            this.sharedRotationState.completedJoints += 1;
+          }
+
+          bone.rotation[axis] = -this.minMaxOfJoints[joint]['currentRotation'];
         }
 
-        currentRotation += rotationSpeed * direction;
-        bone.rotation[axis] = -currentRotation;
+
+        if (this.sharedRotationState.completedJoints === this.sharedRotationState.totalJoints)
+        {
+          this.sharedRotationState.direction *= -1; // Reverse direction
+          this.sharedRotationState.completedJoints = 0; // Reset counter
+
+          // Reactivate all joints
+          for (const j in this.minMaxOfJoints)
+          {
+            this.minMaxOfJoints[j]['stop'] = false;
+          }
+        }
 
         this.animationFrameId = requestAnimationFrame(update);
         this.animationFrameIds[side] = this.animationFrameId
@@ -487,9 +620,11 @@ export default {
       // Start the animation loop
       this.animationFrameId = requestAnimationFrame(update);
     },
-
+    //For therapist dashboard
     changeGesture(clicked)
     {
+
+      this.sharedRotationState = { direction: 1, completedJoints: 0, totalJoints: 2 }; // 1 joints per hand
       switch (this.mode)
       {
         case 'hand':
@@ -530,6 +665,95 @@ export default {
           break
         default:
           break;
+      }
+    },
+    // For patient app
+    autoRotate()
+    {
+      this.sharedRotationState = { direction: 1, completedJoints: 0, totalJoints: 28 }; // 14 joints per hand
+
+      // Extract all the joints need to rotate
+      const right = this.jointExerciseState['Right']
+      const left = this.jointExerciseState['Left']
+
+      // const totalJoints = 14; // Total number of joints
+
+      this._autoRotate(right, 'Right')
+      this._autoRotate(left, 'Left')
+    },
+    _autoRotate(side, sideName)
+    {
+      const bones = this.affectedSide === sideName ? this.bones : this.unaffectedBones;
+
+      for (const joint in side)
+      {
+        this.minMaxOfJoints[joint] = { stop: false };
+
+        const name = joint.split(sideName)[1];
+        const bone = this.findBone(name, bones);
+        if (!bone) continue;
+
+        let minRotation, maxRotation, axis;
+        const rotationSpeed = 0.005;
+
+        const updateRangesAndAxis = () =>
+        {
+          if (this.rotationDirection === 'FE')
+          {
+            // minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Min']);
+            // maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Max']);
+            minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Min']);
+            maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Max']);
+            axis = 'z';
+          } else
+          {
+            // minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Min']);
+            // maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Max']);
+
+            minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Min']);
+            maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Max']);
+            axis = 'x';
+          }
+          this.minMaxOfJoints[joint]['Min'] = minRotation;
+          this.minMaxOfJoints[joint]['Max'] = maxRotation;
+        };
+
+        updateRangesAndAxis();
+        this.minMaxOfJoints[joint]['currentRotation'] = minRotation;
+
+        const update = () =>
+        {
+          if (!this.minMaxOfJoints[joint]['stop'])
+          {
+            this.minMaxOfJoints[joint]['currentRotation'] += rotationSpeed * this.sharedRotationState.direction;
+
+            if (this.minMaxOfJoints[joint]['currentRotation'] >= maxRotation || this.minMaxOfJoints[joint]['currentRotation'] <= minRotation)
+            {
+              this.minMaxOfJoints[joint]['currentRotation'] = Math.min(maxRotation, Math.max(minRotation, this.minMaxOfJoints[joint]['currentRotation']));
+              this.minMaxOfJoints[joint]['stop'] = true;
+              this.sharedRotationState.completedJoints += 1;
+            }
+
+            bone.rotation[axis] = -this.minMaxOfJoints[joint]['currentRotation'];
+          }
+
+          // If all joints (14 left + 14 right = 28) have stopped, switch direction
+          if (this.sharedRotationState.completedJoints === this.sharedRotationState.totalJoints)
+          {
+            this.sharedRotationState.direction *= -1; // Reverse direction
+            this.sharedRotationState.completedJoints = 0; // Reset counter
+
+            // Reactivate all joints
+            for (const j in this.minMaxOfJoints)
+            {
+              this.minMaxOfJoints[j]['stop'] = false;
+            }
+          }
+
+          this.animationFrameIds[side] = requestAnimationFrame(update);
+        };
+
+        this.animationFrameIds[side] = requestAnimationFrame(update);
       }
     }
   }

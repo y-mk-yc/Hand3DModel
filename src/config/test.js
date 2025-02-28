@@ -540,7 +540,7 @@ export const USERSTATE = {
     "_id": "677d0165e28a0ad15a1001ac",
     "PatientID": "PAT-02350c4f-19b2-4bf1-8efc-231138ce51d4",
     "AffectedHand": [
-        "Right"
+        "Left"
     ],
     "AffectedTime": "2025-01-04T20:48:04.614Z",
     "createdAt": "2025-01-07T10:26:46.033Z",
@@ -549,10 +549,11 @@ export const USERSTATE = {
 }
 export const JOINTEXERCISESTATE = {
     "_id": {
-        "$oid": "6789872f8fc22df0acf05c6f"
+        "$oid": "678e38146afdc55f5e057a3c"
     },
-    "PatientID": "PAT-5beb4ef1-fd2c-4ef5-b5f1-d902b6007f4d",
-    "duration": "59.9",
+    "PatientID": "PAT-02350c4f-19b2-4bf1-8efc-231138ce51d4",
+    "Duration": "59.9",
+    "Pain": 1,
     "Right": {
         "RightFinger1Metacarpal": {
             "Yrotation": 4.2151,
@@ -594,7 +595,7 @@ export const JOINTEXERCISESTATE = {
         },
         "RightFinger1Distal": {
             "Yrotation": 4.2151,
-            "Xrotation": -97.08919999999999,
+            "Xrotation": -45.08919999999999,
             "Zrotation": -1.9415000000000002,
             "ROM": {
                 "Yrotation": {
@@ -735,8 +736,8 @@ export const JOINTEXERCISESTATE = {
                     "Min": 6.2817
                 },
                 "Xrotation": {
-                    "Max": -31.816699999999994,
-                    "Min": -121.8167
+                    "Max": 2.679700000000004,
+                    "Min": -97.3249
                 },
                 "Zrotation": {
                     "Max": -1.7675000000000003,
@@ -1003,8 +1004,8 @@ export const JOINTEXERCISESTATE = {
                     "Min": -69.6528
                 },
                 "Xrotation": {
-                    "Max": -5.902999999999999,
-                    "Min": -87.5116
+                    "Max": -19.1756,
+                    "Min": -109.1756
                 },
                 "Zrotation": {
                     "Max": 79.6315,
@@ -1014,7 +1015,7 @@ export const JOINTEXERCISESTATE = {
         },
         "LeftFinger2Medial": {
             "Yrotation": 4.2151,
-            "Xrotation": -94.06139999999999,
+            "Xrotation": -45.06139999999999,
             "Zrotation": -1.9415000000000002,
             "ROM": {
                 "Yrotation": {
@@ -1033,7 +1034,7 @@ export const JOINTEXERCISESTATE = {
         },
         "LeftFinger2Distal": {
             "Yrotation": 4.2151,
-            "Xrotation": -94.06139999999999,
+            "Xrotation": -45.06139999999999,
             "Zrotation": -1.9415000000000002,
             "ROM": {
                 "Yrotation": {
@@ -1079,8 +1080,8 @@ export const JOINTEXERCISESTATE = {
                     "Min": -6.4553
                 },
                 "Xrotation": {
-                    "Max": -34.1083,
-                    "Min": -34.1083
+                    "Max": -5.902999999999999,
+                    "Min": -87.5116
                 },
                 "Zrotation": {
                     "Max": 2.0068,
@@ -1155,8 +1156,8 @@ export const JOINTEXERCISESTATE = {
                     "Min": -7.547600000000001
                 },
                 "Xrotation": {
-                    "Max": -60.8535,
-                    "Min": -60.8536
+                    "Max": -5.902999999999999,
+                    "Min": -60.5116
                 },
                 "Zrotation": {
                     "Max": 12.0067,
@@ -1174,8 +1175,8 @@ export const JOINTEXERCISESTATE = {
                     "Min": -7.5474000000000006
                 },
                 "Xrotation": {
-                    "Max": -65.1536,
-                    "Min": -65.1536
+                    "Max": -70.4285,
+                    "Min": -148.3542
                 },
                 "Zrotation": {
                     "Max": 2.0068,
@@ -1185,7 +1186,7 @@ export const JOINTEXERCISESTATE = {
         },
         "LeftFinger4Distal": {
             "Yrotation": -7.5474000000000006,
-            "Xrotation": -67.9268,
+            "Xrotation": -20.9268,
             "Zrotation": 2.0068,
             "ROM": {
                 "Yrotation": {
@@ -1223,7 +1224,7 @@ export const JOINTEXERCISESTATE = {
         },
         "LeftFinger5Proximal": {
             "Yrotation": -8.4875,
-            "Xrotation": -88.6123,
+            "Xrotation": -50.6123,
             "Zrotation": 2.0068,
             "ROM": {
                 "Yrotation": {
@@ -1242,7 +1243,7 @@ export const JOINTEXERCISESTATE = {
         },
         "LeftFinger5Medial": {
             "Yrotation": -8.4875,
-            "Xrotation": -92.1123,
+            "Xrotation": -30.1123,
             "Zrotation": 2.0068,
             "ROM": {
                 "Yrotation": {
@@ -1250,8 +1251,8 @@ export const JOINTEXERCISESTATE = {
                     "Min": -8.4878
                 },
                 "Xrotation": {
-                    "Max": -92.1123,
-                    "Min": -92.1123
+                    "Max": -5.902999999999999,
+                    "Min": -60.5116
                 },
                 "Zrotation": {
                     "Max": 2.0068,
@@ -1280,10 +1281,10 @@ export const JOINTEXERCISESTATE = {
         }
     },
     "createdAt": {
-        "$date": "2025-01-16T22:24:47.566Z"
+        "$date": "2025-01-18T11:48:36.289Z"
     },
     "updatedAt": {
-        "$date": "2025-01-16T22:24:47.566Z"
+        "$date": "2025-01-20T11:48:36.289Z"
     },
     "__v": 0
 }
