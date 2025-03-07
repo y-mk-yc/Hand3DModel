@@ -656,16 +656,16 @@ export const JOINTEXERCISESTATE = {
             "Zrotation": -3.8453,
             "ROM": {
                 "Yrotation": {
-                    "Max": 178.3966,
-                    "Min": -181.6034
+                    "Max": 26.0682,
+                    "Min": -69.6528
                 },
                 "Xrotation": {
-                    "Max": -19.1756,
-                    "Min": -109.1756
+                    "Max": -21.9441,
+                    "Min": -85.9045
                 },
                 "Zrotation": {
-                    "Max": 176.1547,
-                    "Min": -183.8453
+                    "Max": -19.1756,
+                    "Min": -60.1756
                 }
             }
         },
@@ -1019,8 +1019,8 @@ export const JOINTEXERCISESTATE = {
             "Zrotation": -1.9415000000000002,
             "ROM": {
                 "Yrotation": {
-                    "Max": 8.8637,
-                    "Min": -2.2449000000000003
+                    "Max": 26.0682,
+                    "Min": -69.6528
                 },
                 "Xrotation": {
                     "Max": -84.7682,

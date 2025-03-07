@@ -343,10 +343,13 @@ export default {
         this.affectedSide = this.side[0] === 'Left' ? 'Left' : 'Right';
         this.unaffectedSide = this.side[0] === 'Right' ? 'Left' : 'Right';
 
-
-        this.loadInitialPosition(this.affectedSide, this.bones);
-
-        this.loadInitialPosition(this.unaffectedSide, this.unaffectedBones);
+        if (this.channel === 'T')
+        {
+          this.loadInitialPosition(this.affectedSide, this.bones);
+          this.loadInitialPosition(this.unaffectedSide, this.unaffectedBones);
+        }
+        // this.loadInitialPosition(this.affectedSide, this.bones);
+        // this.loadInitialPosition(this.unaffectedSide, this.unaffectedBones);
 
         this.scene.add(gltf.scene);
         // Only for Deubug - rememeber to comment it when in development
@@ -364,7 +367,6 @@ export default {
       const mouse = new THREE.Vector2();
       let onMouseClick = (event) =>
       {
-        console.log(this.channel)
         if (this.channel === 'P') // Only in T(therapist dashboard), can we have the function
           return
         if (!this.isInitialized)
@@ -450,8 +452,6 @@ export default {
       let foundBone = null;
       bones.traverse((bone) =>
       {
-        console.log({ name, })
-        console.log(bone.name)
         if (bone.name !== undefined && name.substring(0, 11) == bone.name.substring(0, 11)) //Because some of the names become name_1, so use substringto check part of them
         {
           foundBone = bone;
@@ -484,7 +484,7 @@ export default {
         if (!bone) continue;
 
         const xrotation = THREE.MathUtils.degToRad(side[joint]['Yrotation'])
-        const yrotation = THREE.MathUtils.degToRad(side[joint]['Zrotation'])
+        // const yrotation = THREE.MathUtils.degToRad(side[joint]['Zrotation'])
         const zrotation = THREE.MathUtils.degToRad(side[joint]['Xrotation'])
 
         bone.rotation['z'] = -zrotation
@@ -700,18 +700,18 @@ export default {
         {
           if (this.rotationDirection === 'FE')
           {
-            // minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Min']);
-            // maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Max']);
-            minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Min']);
-            maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Max']);
+            minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Min']);
+            maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Max']);
+            // minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Min']);
+            // maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Max']);
             axis = 'z';
           } else
           {
-            // minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Min']);
-            // maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Max']);
+            minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Min']);
+            maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Yrotation']['Max']);
 
-            minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Min']);
-            maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Max']);
+            // minRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Min']);
+            // maxRotation = THREE.MathUtils.degToRad(side[joint]['ROM']['Xrotation']['Max']);
             axis = 'x';
           }
           this.minMaxOfJoints[joint]['Min'] = minRotation;
