@@ -30,8 +30,8 @@ export default {
       fingers: [],
       bones: [],
       mode: 'hand', // hand, finger, joint
-      jointExerciseState: JOINTEXERCISESTATE,
-      userState: USERSTATE,
+      jointExerciseState: null,//JOINTEXERCISESTATE,
+      userState: null,//USERSTATE,
       side: USERSTATE['AffectedHand'], // Right, Left
       newRotateFinger: '',
       currentRotateFinger: '',
@@ -87,6 +87,7 @@ export default {
   }, methods: {
     receiveMessageFromTherapist(message)
     {
+      console.log('receiveMessageFromTherapist', message.type)
       if (message.type === 'initial')
       {
         const { jointExerciseState, userState } = message.data
@@ -94,6 +95,13 @@ export default {
         this.userState = userState
         this.isInitialized = true
         this.channel = 'T'
+
+        this.side = this.userState.AffectedHand;
+        this.affectedSide = this.side[0] === 'Left' ? 'Left' : 'Right';
+        this.unaffectedSide = this.side[0] === 'Right' ? 'Left' : 'Right';
+
+        this.loadInitialPosition(this.affectedSide, this.bones);
+        this.loadInitialPosition(this.unaffectedSide, this.unaffectedBones);
         this.initColor();
       } else if (message.type === 'rotationDirection')
       {
@@ -157,6 +165,7 @@ export default {
       this.jointExerciseState = jointExerciseStateObj;
       this.userState = userStateObj;
       this.contrast = contrast;
+      console.log(this.jointExerciseState)
       this.initColor();
       this.setContrastModels(contrast);
       this.autoRotate()
@@ -202,15 +211,14 @@ export default {
         })
       }
     },
-    //初始场景
+    //Initial scene
     initScene()
     {
       this.scene = new THREE.Scene();
       this.scene.background = new THREE.Color('#F2F4FB');
-      // 创建加载管理器
       this.loadingManager = new THREE.LoadingManager(() =>
       {
-        this.loading = false; // 加载完成后，隐藏加载动画
+        this.loading = false; // When the load is complete, hide the load animation
       });
       this.initCamera();
       this.initRender();
@@ -343,13 +351,11 @@ export default {
         this.affectedSide = this.side[0] === 'Left' ? 'Left' : 'Right';
         this.unaffectedSide = this.side[0] === 'Right' ? 'Left' : 'Right';
 
-        if (this.channel === 'T')
-        {
-          this.loadInitialPosition(this.affectedSide, this.bones);
-          this.loadInitialPosition(this.unaffectedSide, this.unaffectedBones);
-        }
-        // this.loadInitialPosition(this.affectedSide, this.bones);
-        // this.loadInitialPosition(this.unaffectedSide, this.unaffectedBones);
+        // if (this.isInitialized === 'T' && this.channel === 'T')
+        // {
+        //   this.loadInitialPosition(this.affectedSide, this.bones);
+        //   this.loadInitialPosition(this.unaffectedSide, this.unaffectedBones);
+        // }
 
         this.scene.add(gltf.scene);
         // Only for Deubug - rememeber to comment it when in development
